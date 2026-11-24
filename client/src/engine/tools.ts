@@ -45,6 +45,21 @@ function snapTo15(ax: number, ay: number, bx: number, by: number): [number, numb
   return [ax + d * Math.cos(a), ay + d * Math.sin(a)];
 }
 
+/** A light ring with a dark ring inside it: one of the two always shows, on white paper, dark photos or a dark board. */
+function haloRing(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, alpha: number) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1.25;
+  ctx.stroke();
+  ctx.restore();
+}
+
 // =====================================================================
 // Pen / highlighter
 // =====================================================================
@@ -1254,14 +1269,13 @@ export class Input {
       ctx.arc(h.sx, h.sy, r, 0, Math.PI * 2);
       ctx.fillStyle = e.env.dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.05)';
       ctx.fill();
-      ctx.strokeStyle = e.env.dark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.6)';
-      ctx.lineWidth = 1.25;
-      ctx.stroke();
+      haloRing(ctx, h.sx, h.sy, r, 0.8);
     } else if (tool === 'laser' && !penning) {
       ctx.beginPath();
       ctx.arc(h.sx, h.sy, 4, 0, Math.PI * 2);
       ctx.fillStyle = ui.me.color;
       ctx.fill();
+      haloRing(ctx, h.sx, h.sy, 4.5, 0.6);
     } else {
       const st = e.currentStyle(tool === 'highlighter' ? 'highlighter' : 'pen', false);
       const r = Math.max(1.5, (st.size * e.cam.zoom) / 2);
@@ -1270,15 +1284,9 @@ export class Input {
       ctx.globalAlpha = st.pen === 'highlighter' ? 0.45 : this.gesture ? 0 : 0.9;
       ctx.fillStyle = resolveColor(st.color, e.env.dark);
       ctx.fill();
-      if (!this.gesture && r < 3) {
-        // tiny pens get a faint ring so the cursor is never lost
-        ctx.globalAlpha = 0.35;
-        ctx.beginPath();
-        ctx.arc(h.sx, h.sy, 5, 0, Math.PI * 2);
-        ctx.strokeStyle = e.env.dark ? '#ffffff' : '#000000';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
+      ctx.globalAlpha = 1;
+      // the ring keeps the dot visible over any background (white ink on a white PDF page, dark ink on a photo…)
+      haloRing(ctx, h.sx, h.sy, Math.max(5, r + 1), this.gesture ? 0.35 : 0.6);
     }
     ctx.restore();
   }
