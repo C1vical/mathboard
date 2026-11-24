@@ -4,7 +4,7 @@ import {
   frameOf, highlighterIndex, hitObject, matMul, matRotateAbout, matScaleAbout, matTranslate, objBounds, objInLasso, objInRect,
   pointInFrame, segHitsInk, shapeToStrokePoints, strokeBBox, transformObject, type Frame, type Mat,
 } from '../../../shared/geometry';
-import { round1, round2, straightPoints } from '../../../shared/ink';
+import { PressureFilter, round1, round2, straightPoints } from '../../../shared/ink';
 import { isScribble, recognizeShape, type Recognized } from '../../../shared/recognize';
 import { findSnap, knobPos, rulerContains, snapAngle, snapPoint, type Snap } from '../../../shared/ruler';
 import { dragCrop, toImageFraction } from '../../../shared/crop';
@@ -89,8 +89,21 @@ class PenGesture implements Gesture {
     this.add(p, ev);
   }
 
-  private pressure(p: Pt) {
-    return this.style.sim ? 0.5 : round2(Math.max(0.05, Math.min(1, p.p || 0.5)));
+  private pf = new PressureFilter();
+  /** indices in `pts` of pressures recorded before the pen reported any */
+  private blind: number[] = [];
+
+  private pressure(p: Pt): number {
+    if (this.style.sim || this.mode === 'edge') return 0.5;
+    const v = this.pf.next(p.p);
+    if (v === null) { this.blind.push(this.pts.length + 2); return 0.5; }
+    if (this.blind.length) {
+      // the first real reading fills in the points drawn before it, so pen-down leaves no blob
+      for (const i of this.blind) this.pts[i] = v;
+      this.blind = [];
+      this.reset = true;
+    }
+    return v;
   }
 
   private add(p: Pt, ev: PointerEvent) {
@@ -105,7 +118,7 @@ class PenGesture implements Gesture {
     const x = round1(wx), y = round1(wy);
     const n = this.pts.length;
     if (n && this.pts[n - 3] === x && this.pts[n - 2] === y) return;
-    const pr = this.mode === 'edge' ? 0.5 : this.pressure(p);
+    const pr = this.pressure(p);
     this.pts.push(x, y, pr);
     this.unsent.push(x, y, pr);
   }

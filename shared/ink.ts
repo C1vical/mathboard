@@ -73,6 +73,23 @@ export function pencilAlpha(style: InkStyle, points: number[]): number {
 export const round1 = (v: number) => Math.round(v * 10) / 10;
 export const round2 = (v: number) => Math.round(v * 100) / 100;
 
+/**
+ * Cleans up raw pen pressure while a stroke is drawn. Pen drivers (Wacom through Windows Ink in
+ * particular) often report 0 on pen-down and drop to 0 for single samples mid-stroke; read
+ * literally, those become blobs or nicks in the ink. A zero reading repeats the last real one,
+ * `null` means no real reading has arrived yet (the caller fills those points in once one does),
+ * and light smoothing removes the stair-steps of quantised pressure.
+ */
+export class PressureFilter {
+  private last = -1;
+  next(raw: number): number | null {
+    if (!(raw > 0)) return this.last < 0 ? null : round2(this.last);
+    const v = Math.max(0.05, Math.min(1, raw));
+    this.last = this.last < 0 ? v : this.last + (v - this.last) * 0.5;
+    return round2(this.last);
+  }
+}
+
 /** Straight stroke between two points (used for ruler/straight-highlighter/held lines). */
 export function straightPoints(ax: number, ay: number, bx: number, by: number, pressure = 0.5): number[] {
   const len = Math.hypot(bx - ax, by - ay);
